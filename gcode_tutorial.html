@@ -1,0 +1,545 @@
+<h2 class="sr-only">G-code 完整入門教學投影片，共14頁，包含名詞解釋、核心指令、三個動畫範例、刀具補償與常見錯誤</h2>
+<div style="padding: 1rem 0;">
+
+  <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:1rem;">
+    <div style="display:flex; gap:6px; flex-wrap:wrap;" id="dots"></div>
+    <span style="font-size:13px; color:var(--color-text-secondary); white-space:nowrap; margin-left:8px;" id="counter">1 / 14</span>
+  </div>
+
+  <div style="min-height:380px; background:var(--color-background-primary); border:0.5px solid var(--color-border-tertiary); border-radius:var(--border-radius-lg); padding:1.5rem;" id="slideHost"></div>
+
+  <div style="display:flex; justify-content:space-between; margin-top:1rem;">
+    <button id="prevBtn"><i class="ti ti-arrow-left" aria-hidden="true" style="margin-right:4px;"></i>上一頁</button>
+    <button id="nextBtn">下一頁<i class="ti ti-arrow-right" aria-hidden="true" style="margin-left:4px;"></i></button>
+  </div>
+
+</div>
+
+<script>
+(function(){
+
+  var slides = [
+    { kind:'points', tag:'c-purple', tagLabel:'總覽',
+      title:'這份投影片會教你什麼',
+      body:'從零開始,看完之後你會懂得基本指令的意義,並能讀懂、修改、自己寫出簡單的加工程式。',
+      points:['名詞小辭典:對刀、安全高度、進給率等', '核心指令:G00/G01/G02/G03、絕對/相對座標', '三個動畫範例:口袋銑削、鑽孔、圓弧輪廓', '刀具半徑補償觀念、常見錯誤提醒']
+    },
+    { kind:'glossary', tag:'c-teal', tagLabel:'名詞小辭典',
+      title:'開始前先認識幾個詞',
+      body:'這些詞會在後面反覆出現,先有個印象即可,不用死背。',
+      terms:[
+        {t:'工件座標系', d:'操作者設定的加工原點(常用G54),所有座標都相對於它'},
+        {t:'對刀', d:'用對刀儀或手動方式,讓機台知道刀尖實際在哪裡'},
+        {t:'安全高度', d:'移動時刀具至少要抬到的高度,避免撞到工件或夾具'},
+        {t:'進給率 F', d:'刀具切削移動的速度,單位通常是 mm/min'},
+        {t:'主軸轉速 S', d:'主軸(刀具)旋轉的速度,單位 RPM'},
+        {t:'下刀/退刀', d:'刀具垂直進入材料叫下刀,離開材料叫退刀'}
+      ]
+    },
+    { kind:'compare', tag:'c-purple', tagLabel:'指令分類',
+      title:'G碼與M碼的差別',
+      body:'程式裡的每一行幾乎都是這兩種指令的組合。',
+      compare:[
+        {label:'G碼 (Geometric)', desc:'控制刀具的「移動方式」,例如直線、圓弧、座標模式'},
+        {label:'M碼 (Miscellaneous)', desc:'控制機械本身的開關動作,例如主軸啟動、冷卻液、程式結束'}
+      ]
+    },
+    { kind:'code', tag:'c-teal', tagLabel:'程式開頭',
+      title:'每支程式開頭都會先做的設定',
+      body:'這幾行像是「開機準備」,告訴控制器接下來要怎麼解讀座標。',
+      code:['G21   (公制單位 mm)','G90   (絕對座標模式)','G17   (選擇XY平面)','G54   (套用工件座標系1)','G49   (取消刀具長度補償)','G40   (取消刀徑補償)']
+    },
+    { kind:'compare', tag:'c-teal', tagLabel:'座標模式',
+      title:'G90 絕對座標 vs G91 相對座標',
+      body:'初學者最容易搞混的觀念,兩者寫出來的XY數字意義完全不同。',
+      compare:[
+        {label:'G90 絕對座標', desc:'每一行的座標都是「目的地」,相對於原點(0,0)'},
+        {label:'G91 相對座標', desc:'每一行的座標都是「移動量」,相對於目前所在位置'}
+      ]
+    },
+    { kind:'compare', tag:'c-purple', tagLabel:'移動指令',
+      title:'G00 快速定位 vs G01 直線切削',
+      body:'兩個最常用的移動指令,差別在速度與是否真的在切削。',
+      compare:[
+        {label:'G00 快速定位', desc:'機台全速移動,不切削,用於抬刀、空跑'},
+        {label:'G01 直線切削', desc:'依F指定的進給率移動,過程中會實際切削材料'}
+      ]
+    },
+    { kind:'compare', tag:'c-purple', tagLabel:'移動指令',
+      title:'G02 順時針 vs G03 逆時針圓弧',
+      body:'加工圓弧或圓角時使用,差別在旋轉方向,從刀具前進方向看。',
+      compare:[
+        {label:'G02 順時針圓弧', desc:'從目前位置順時針畫弧到指定終點'},
+        {label:'G03 逆時針圓弧', desc:'從目前位置逆時針畫弧到指定終點'}
+      ]
+    },
+    { kind:'example', ex:'pocket', tag:'c-coral', tagLabel:'範例一',
+      title:'方形口袋銑削(50x50mm, 6mm銑刀)',
+      body:'刀心要往內縮一個刀具半徑(3mm),所以邊界從±25變成±22。動畫顯示俯視圖,實際還有Z軸下刀深度。'
+    },
+    { kind:'example', ex:'drill', tag:'c-coral', tagLabel:'範例二',
+      title:'鑽孔循環 G81(三個孔)',
+      body:'G81是「鑽孔固定循環」,設定一次參數後,後面只要給新的XY,機台就會自動下鑽、退刀。'
+    },
+    { kind:'example', ex:'arc', tag:'c-coral', tagLabel:'範例三',
+      title:'直線+圓弧輪廓(G01 接 G03)',
+      body:'I、J是圓弧「起點到圓心」的相對位移量,不是圓心的絕對座標,這是初學者常搞混的地方。'
+    },
+    { kind:'compensation', tag:'c-pink', tagLabel:'刀徑補償',
+      title:'G41 / G42 刀具半徑補償',
+      body:'程式通常是照著零件的實際輪廓寫,但刀具有半徑,控制器要知道該往哪一側偏移刀心路徑。'
+    },
+    { kind:'mistakes', tag:'c-coral', tagLabel:'重要提醒',
+      title:'新手常犯的錯誤',
+      mistakes:[
+        '忘記在程式結尾取消刀徑補償(G40),下一支程式可能直接撞刀',
+        'G90/G91搞混,導致座標解讀完全相反,刀具亂跑',
+        '安全高度設太低或忘記抬刀,移動時直接撞到工件或夾具',
+        '主軸還沒啟動(M03)就讓刀具下刀',
+        '進給率F忘記設定或設成0,有些控制器會直接停住或報錯',
+        'G20(英制)/G21(公制)搞混,所有尺寸會差2.54倍',
+        'I、J當成圓心絕對座標來寫,實際上它是相對起點的偏移量'
+      ]
+    },
+    { kind:'code', tag:'c-gray', tagLabel:'整體結構',
+      title:'一支完整程式的骨架長這樣',
+      body:'不論加工內容是什麼,大部分程式都遵守這個「開頭—加工—收尾」的結構。',
+      code:['G21 G90 G17 G54 G49 G40   (開頭設定)','M03 S12000                (啟動主軸)','G00 Z10.0                 (抬到安全高度)','G00 X.. Y..                (移動到起始點)','...                       (實際加工路徑)','G00 Z10.0                 (抬刀)','M05                       (主軸停止)','M30                       (程式結束)']
+    },
+    { kind:'points', tag:'c-teal', tagLabel:'下一步',
+      title:'接下來可以怎麼練習',
+      body:'建議照這個順序,由淺入深,每一步都先在空跑模式下確認路徑再上機。',
+      points:['先練習單一輪廓繞圈(像口袋範例的精修一圈)', '加入分層下刀,習慣Z軸逐層遞減的寫法', '練習鑽孔循環G81,再進階到攻牙循環G84', '練習刀徑補償G41/G42,理解進刀/退刀的安全寫法', '熟悉後可以開始接觸CAM軟體產生的程式,對照手寫邏輯']
+    }
+  ];
+
+  var idx = 0;
+  var animHandle = null;
+  var host = document.getElementById('slideHost');
+  var counter = document.getElementById('counter');
+  var dotsWrap = document.getElementById('dots');
+
+  function stopAnim(){
+    if(animHandle){ cancelAnimationFrame(animHandle); animHandle = null; }
+  }
+
+  function dotColor(active){
+    return active ? 'var(--color-text-primary)' : 'var(--color-border-secondary)';
+  }
+
+  function renderDots(){
+    dotsWrap.innerHTML = '';
+    slides.forEach(function(_, i){
+      var d = document.createElement('div');
+      d.style.cssText = 'width:6px; height:6px; border-radius:50%; cursor:pointer; background:' + dotColor(i===idx);
+      d.onclick = function(){ idx = i; render(); };
+      dotsWrap.appendChild(d);
+    });
+  }
+
+  function head(s){
+    var html = '<span style="display:inline-block; font-size:12px; padding:3px 10px; border-radius:var(--border-radius-md);" class="' + s.tag + '">' + s.tagLabel + '</span>';
+    html += '<h3 style="margin:12px 0 8px;">' + s.title + '</h3>';
+    html += '<p style="font-size:14px; color:var(--color-text-secondary); margin:0 0 14px; line-height:1.6;">' + s.body + '</p>';
+    return html;
+  }
+
+  function renderSlideHTML(s){
+    var html = head(s);
+
+    if(s.kind === 'points'){
+      html += '<div style="display:flex; flex-direction:column; gap:8px;">';
+      s.points.forEach(function(p){
+        html += '<div style="display:flex; gap:8px; align-items:flex-start; font-size:14px;"><i class="ti ti-point-filled" style="font-size:14px; margin-top:3px; color:var(--color-text-tertiary);" aria-hidden="true"></i><span>' + p + '</span></div>';
+      });
+      html += '</div>';
+    }
+
+    if(s.kind === 'compare'){
+      html += '<div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(180px,1fr)); gap:12px;">';
+      s.compare.forEach(function(c){
+        html += '<div style="background:var(--color-background-secondary); border-radius:var(--border-radius-md); padding:0.85rem;"><p style="font-weight:500; font-size:14px; margin:0 0 4px;">' + c.label + '</p><p style="font-size:13px; color:var(--color-text-secondary); margin:0; line-height:1.5;">' + c.desc + '</p></div>';
+      });
+      html += '</div>';
+    }
+
+    if(s.kind === 'code'){
+      html += '<div style="background:var(--color-background-secondary); border-radius:var(--border-radius-md); padding:0.85rem 1rem; font-family:var(--font-mono); font-size:13px; line-height:1.85; white-space:pre-wrap;">' + s.code.join('\\n') + '</div>';
+    }
+
+    if(s.kind === 'glossary'){
+      html += '<div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(190px,1fr)); gap:10px;">';
+      s.terms.forEach(function(t){
+        html += '<div style="background:var(--color-background-secondary); border-radius:var(--border-radius-md); padding:0.75rem 0.9rem;"><p style="font-weight:500; font-size:13px; margin:0 0 3px;">' + t.t + '</p><p style="font-size:12px; color:var(--color-text-secondary); margin:0; line-height:1.5;">' + t.d + '</p></div>';
+      });
+      html += '</div>';
+    }
+
+    if(s.kind === 'mistakes'){
+      html += '<div style="display:flex; flex-direction:column; gap:8px;">';
+      s.mistakes.forEach(function(m){
+        html += '<div style="display:flex; gap:8px; align-items:flex-start; font-size:13px; background:var(--color-background-warning); border-radius:var(--border-radius-md); padding:8px 10px;"><i class="ti ti-alert-triangle" style="font-size:15px; margin-top:1px; color:var(--color-text-warning); flex-shrink:0;" aria-hidden="true"></i><span style="color:var(--color-text-warning); line-height:1.5;">' + m + '</span></div>';
+      });
+      html += '</div>';
+    }
+
+    if(s.kind === 'example'){
+      html += '<div style="display:flex; gap:16px; flex-wrap:wrap; align-items:flex-start;">';
+      html += '<canvas id="exCanvas" width="240" height="240" style="border:0.5px solid var(--color-border-tertiary); border-radius:var(--border-radius-md); flex-shrink:0;"></canvas>';
+      html += '<div id="exList" style="flex:1; min-width:180px; font-family:var(--font-mono); font-size:12px; line-height:1.7; display:flex; flex-direction:column; gap:2px;"></div>';
+      html += '</div>';
+    }
+
+    if(s.kind === 'compensation'){
+      html += '<div style="display:flex; gap:16px; flex-wrap:wrap; align-items:flex-start;">';
+      html += '<canvas id="compCanvas" width="280" height="200" style="border:0.5px solid var(--color-border-tertiary); border-radius:var(--border-radius-md); flex-shrink:0;"></canvas>';
+      html += '<div style="flex:1; min-width:160px; display:flex; flex-direction:column; gap:8px;">';
+      html += '<div style="display:flex; align-items:center; gap:8px; font-size:13px;"><span style="width:18px; height:2px; background:#888780; flex-shrink:0;"></span>編程輪廓(零件邊界)</div>';
+      html += '<div style="display:flex; align-items:center; gap:8px; font-size:13px;"><span style="width:18px; height:2px; background:#534AB7; flex-shrink:0;"></span>G41 刀心路徑(前進方向左側)</div>';
+      html += '<div style="display:flex; align-items:center; gap:8px; font-size:13px;"><span style="width:18px; height:2px; background:#D85A30; flex-shrink:0;"></span>G42 刀心路徑(前進方向右側)</div>';
+      html += '<p style="font-size:12px; color:var(--color-text-tertiary); margin:8px 0 0; line-height:1.5;">實際該用左補償或右補償,要看刀具在材料的哪一側,這裡只示意左右的相對關係。</p>';
+      html += '</div></div>';
+    }
+
+    return html;
+  }
+
+  function toXY(x, y, w, h, range){
+    var pad = 24;
+    var scale = (Math.min(w,h) - 2*pad) / (2*range);
+    return { x: w/2 + x*scale, y: h/2 - y*scale };
+  }
+
+  function drawBase(ctx, w, h, range){
+    ctx.clearRect(0,0,w,h);
+    ctx.strokeStyle = 'rgba(136,135,128,0.22)';
+    ctx.lineWidth = 1;
+    for(var g=-range; g<=range; g+=10){
+      var v1 = toXY(g, -range, w, h, range);
+      var v2 = toXY(g, range, w, h, range);
+      ctx.beginPath(); ctx.moveTo(v1.x, v1.y); ctx.lineTo(v2.x, v2.y); ctx.stroke();
+      var h1 = toXY(-range, g, w, h, range);
+      var h2 = toXY(range, g, w, h, range);
+      ctx.beginPath(); ctx.moveTo(h1.x, h1.y); ctx.lineTo(h2.x, h2.y); ctx.stroke();
+    }
+    ctx.strokeStyle = 'rgba(136,135,128,0.4)';
+    var ax1 = toXY(-range,0,w,h,range), ax2 = toXY(range,0,w,h,range);
+    var ay1 = toXY(0,-range,w,h,range), ay2 = toXY(0,range,w,h,range);
+    ctx.beginPath(); ctx.moveTo(ax1.x,ax1.y); ctx.lineTo(ax2.x,ax2.y); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(ay1.x,ay1.y); ctx.lineTo(ay2.x,ay2.y); ctx.stroke();
+  }
+
+  function sampleArc(from, to, center, ccw, n){
+    var r = Math.hypot(from[0]-center[0], from[1]-center[1]);
+    var a0 = Math.atan2(from[1]-center[1], from[0]-center[0]);
+    var a1 = Math.atan2(to[1]-center[1], to[0]-center[0]);
+    if(ccw){ if(a1 <= a0) a1 += Math.PI*2; }
+    else { if(a1 >= a0) a1 -= Math.PI*2; }
+    var pts = [];
+    for(var i=1;i<=n;i++){
+      var t = i/n;
+      var a = a0 + (a1-a0)*t;
+      pts.push([center[0]+r*Math.cos(a), center[1]+r*Math.sin(a)]);
+    }
+    return pts;
+  }
+
+  function buildSamples(startPt, segments){
+    var pts = [{ p: startPt, segIdx: -1, kind:'start' }];
+    var cur = startPt;
+    segments.forEach(function(seg, i){
+      if(seg.type === 'arc'){
+        sampleArc(cur, seg.to, seg.center, seg.ccw, 18).forEach(function(p){
+          pts.push({ p: p, segIdx: i, kind:'cut' });
+        });
+      } else {
+        pts.push({ p: seg.to, segIdx: i, kind: seg.type });
+      }
+      cur = seg.to;
+    });
+    return pts;
+  }
+
+  function withDist(samples){
+    var d = [0];
+    for(var i=1;i<samples.length;i++){
+      var a = samples[i-1].p, b = samples[i].p;
+      d.push(d[i-1] + Math.hypot(b[0]-a[0], b[1]-a[1]));
+    }
+    return d;
+  }
+
+  function renderLines(listEl, lines){
+    listEl.innerHTML = '';
+    lines.forEach(function(t, i){
+      var div = document.createElement('div');
+      div.id = 'cline' + i;
+      div.style.cssText = 'padding:3px 6px; border-radius:4px; white-space:pre;';
+      div.textContent = t;
+      listEl.appendChild(div);
+    });
+  }
+
+  function highlight(lines, activeIdx){
+    for(var i=0;i<lines.length;i++){
+      var el = document.getElementById('cline' + i);
+      if(!el) continue;
+      el.style.background = (i === activeIdx) ? 'var(--color-background-info)' : 'transparent';
+      el.style.color = (i === activeIdx) ? 'var(--color-text-info)' : 'var(--color-text-secondary)';
+    }
+  }
+
+  function initPathExample(startPt, segments, lines, lineOffset, prePauseMs, prePauseIdx, range){
+    var canvas = document.getElementById('exCanvas');
+    var listEl = document.getElementById('exList');
+    renderLines(listEl, lines);
+    var ctx = canvas.getContext('2d');
+    var samples = buildSamples(startPt, segments);
+    var dist = withDist(samples);
+    var total = dist[dist.length-1];
+    var pathDuration = 4200;
+    var loopGap = 900;
+    var t0 = performance.now();
+
+    function frame(now){
+      var elapsed = now - t0;
+      drawBase(ctx, canvas.width, canvas.height, range);
+
+      var pos = startPt;
+      var activeIdx = prePauseIdx !== null ? lineOffset + prePauseIdx : lineOffset;
+
+      if(prePauseMs && elapsed < prePauseMs){
+        activeIdx = prePauseIdx;
+        pos = startPt;
+        var pulse = 3 + 2*Math.sin(elapsed/120);
+        var c0 = toXY(pos[0], pos[1], canvas.width, canvas.height, range);
+        ctx.fillStyle = '#993C1D';
+        ctx.beginPath(); ctx.arc(c0.x, c0.y, pulse, 0, Math.PI*2); ctx.fill();
+      } else {
+        var localT = elapsed - (prePauseMs||0);
+        var frac = Math.min(localT / pathDuration, 1);
+        var traveled = frac * total;
+
+        var k = 0;
+        while(k < dist.length-1 && dist[k+1] < traveled) k++;
+        var segFrom = samples[k].p, segTo = samples[Math.min(k+1, samples.length-1)].p;
+        var segLen = dist[Math.min(k+1, dist.length-1)] - dist[k];
+        var segFrac = segLen > 0 ? (traveled - dist[k]) / segLen : 0;
+        pos = [ segFrom[0] + (segTo[0]-segFrom[0])*segFrac, segFrom[1] + (segTo[1]-segFrom[1])*segFrac ];
+
+        var curSegIdx = samples[Math.min(k+1, samples.length-1)].segIdx;
+        activeIdx = lineOffset + Math.max(curSegIdx, 0);
+
+        for(var i=1;i<=k;i++){
+          var a = toXY(samples[i-1].p[0], samples[i-1].p[1], canvas.width, canvas.height, range);
+          var b = toXY(samples[i].p[0], samples[i].p[1], canvas.width, canvas.height, range);
+          ctx.strokeStyle = samples[i].kind === 'rapid' ? '#888780' : '#534AB7';
+          ctx.lineWidth = 2;
+          if(samples[i].kind === 'rapid') ctx.setLineDash([4,3]); else ctx.setLineDash([]);
+          ctx.beginPath(); ctx.moveTo(a.x,a.y); ctx.lineTo(b.x,b.y); ctx.stroke();
+        }
+        var af = toXY(segFrom[0], segFrom[1], canvas.width, canvas.height, range);
+        var bf = toXY(pos[0], pos[1], canvas.width, canvas.height, range);
+        ctx.strokeStyle = samples[Math.min(k+1,samples.length-1)].kind === 'rapid' ? '#888780' : '#534AB7';
+        ctx.lineWidth = 2;
+        if(samples[Math.min(k+1,samples.length-1)].kind === 'rapid') ctx.setLineDash([4,3]); else ctx.setLineDash([]);
+        ctx.beginPath(); ctx.moveTo(af.x,af.y); ctx.lineTo(bf.x,bf.y); ctx.stroke();
+        ctx.setLineDash([]);
+
+        var cp = toXY(pos[0], pos[1], canvas.width, canvas.height, range);
+        ctx.fillStyle = '#993C1D';
+        ctx.beginPath(); ctx.arc(cp.x, cp.y, 5, 0, Math.PI*2); ctx.fill();
+
+        if(frac >= 1 && localT > pathDuration + loopGap){
+          t0 = now;
+        }
+      }
+
+      highlight(lines, activeIdx);
+      animHandle = requestAnimationFrame(frame);
+    }
+    animHandle = requestAnimationFrame(frame);
+  }
+
+  function initDrillExample(){
+    var canvas = document.getElementById('exCanvas');
+    var listEl = document.getElementById('exList');
+    var lines = [
+      'G00 X-15 Y0        (移到第1孔上方)',
+      'G81 X-15 Y0 Z-8 R2 F150   (鑽第1孔)',
+      'X0 Y0              (鑽第2孔)',
+      'X15 Y0             (鑽第3孔)',
+      'G80                (取消鑽孔循環)'
+    ];
+    renderLines(listEl, lines);
+    var ctx = canvas.getContext('2d');
+    var range = 30;
+    var holes = [[-15,0],[0,0],[15,0]];
+    var start = [0,22];
+
+    var phases = [
+      { type:'move', from:start, to:holes[0], dur:1000, line:0 },
+      { type:'drill', at:holes[0], dur:900, line:1 },
+      { type:'move', from:holes[0], to:holes[1], dur:700, line:2 },
+      { type:'drill', at:holes[1], dur:800, line:2 },
+      { type:'move', from:holes[1], to:holes[2], dur:700, line:3 },
+      { type:'drill', at:holes[2], dur:800, line:3 },
+      { type:'pause', dur:900, line:4 }
+    ];
+    var totalDur = phases.reduce(function(s,p){ return s+p.dur; }, 0);
+    var t0 = performance.now();
+    var doneHoles = [];
+
+    function phaseAt(elapsed){
+      var acc = 0;
+      for(var i=0;i<phases.length;i++){
+        if(elapsed < acc + phases[i].dur) return { p: phases[i], local: elapsed-acc, idx:i };
+        acc += phases[i].dur;
+      }
+      return { p: phases[phases.length-1], local: phases[phases.length-1].dur, idx: phases.length-1 };
+    }
+
+    function frame(now){
+      var elapsed = (now - t0) % (totalDur + 900);
+      drawBase(ctx, canvas.width, canvas.height, range);
+
+      var info = phaseAt(elapsed);
+      var ph = info.p;
+      doneHoles = [];
+      for(var i=0;i<info.idx;i++){
+        if(phases[i].type === 'drill') doneHoles.push(phases[i].at);
+      }
+
+      doneHoles.forEach(function(h){
+        var c = toXY(h[0], h[1], canvas.width, canvas.height, range);
+        ctx.fillStyle = '#534AB7';
+        ctx.beginPath(); ctx.arc(c.x, c.y, 5, 0, Math.PI*2); ctx.fill();
+      });
+
+      var pos;
+      if(ph.type === 'move'){
+        var frac = Math.min(ph.dur ? info.local/ph.dur : 1, 1);
+        pos = [ ph.from[0]+(ph.to[0]-ph.from[0])*frac, ph.from[1]+(ph.to[1]-ph.from[1])*frac ];
+        var a = toXY(ph.from[0],ph.from[1],canvas.width,canvas.height,range);
+        var b = toXY(pos[0],pos[1],canvas.width,canvas.height,range);
+        ctx.strokeStyle = '#888780'; ctx.lineWidth = 2; ctx.setLineDash([4,3]);
+        ctx.beginPath(); ctx.moveTo(a.x,a.y); ctx.lineTo(b.x,b.y); ctx.stroke();
+        ctx.setLineDash([]);
+      } else if(ph.type === 'drill'){
+        pos = ph.at;
+        var pulse = 5 + 4*Math.sin(info.local/100);
+        var c0 = toXY(pos[0], pos[1], canvas.width, canvas.height, range);
+        ctx.strokeStyle = '#D85A30'; ctx.lineWidth = 2;
+        ctx.beginPath(); ctx.arc(c0.x, c0.y, Math.abs(pulse)+4, 0, Math.PI*2); ctx.stroke();
+      } else {
+        pos = holes[2];
+      }
+
+      var cp = toXY(pos[0], pos[1], canvas.width, canvas.height, range);
+      ctx.fillStyle = '#993C1D';
+      ctx.beginPath(); ctx.arc(cp.x, cp.y, 5, 0, Math.PI*2); ctx.fill();
+
+      highlight(lines, ph.line);
+      animHandle = requestAnimationFrame(frame);
+    }
+    animHandle = requestAnimationFrame(frame);
+  }
+
+  function initCompensation(){
+    var canvas = document.getElementById('compCanvas');
+    var ctx = canvas.getContext('2d');
+    var w = canvas.width, h = canvas.height;
+    var range = 26;
+    drawBase(ctx, w, h, range);
+
+    var programmed = [[-20,0],[20,0]];
+    var g41 = [[-20,7],[20,7]];
+    var g42 = [[-20,-7],[20,-7]];
+
+    function drawLine(pts, color, dashed){
+      ctx.strokeStyle = color; ctx.lineWidth = 2;
+      ctx.setLineDash(dashed ? [5,4] : []);
+      var a = toXY(pts[0][0], pts[0][1], w, h, range);
+      var b = toXY(pts[1][0], pts[1][1], w, h, range);
+      ctx.beginPath(); ctx.moveTo(a.x,a.y); ctx.lineTo(b.x,b.y); ctx.stroke();
+      ctx.setLineDash([]);
+    }
+
+    drawLine(programmed, '#888780', true);
+    drawLine(g41, '#534AB7', false);
+    drawLine(g42, '#D85A30', false);
+
+    var arrowStart = toXY(-20,0,w,h,range);
+    var arrowEnd = toXY(-8,0,w,h,range);
+    ctx.strokeStyle = '#5F5E5A'; ctx.lineWidth = 1.5;
+    ctx.beginPath(); ctx.moveTo(arrowStart.x, arrowStart.y); ctx.lineTo(arrowEnd.x, arrowEnd.y); ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(arrowEnd.x, arrowEnd.y);
+    ctx.lineTo(arrowEnd.x-7, arrowEnd.y-4);
+    ctx.lineTo(arrowEnd.x-7, arrowEnd.y+4);
+    ctx.closePath(); ctx.fillStyle = '#5F5E5A'; ctx.fill();
+  }
+
+  function initExample(kind){
+    if(kind === 'pocket'){
+      var lines = [
+        'G01 Z-5.0 F300      (下刀到底部)',
+        'G01 X22.0 Y0   F900',
+        'G01 X22.0 Y22.0',
+        'G01 X-22.0 Y22.0',
+        'G01 X-22.0 Y-22.0',
+        'G01 X22.0 Y-22.0',
+        'G01 X22.0 Y0',
+        'G01 X0 Y0'
+      ];
+      var segs = [
+        {type:'cut', to:[22,0]},
+        {type:'cut', to:[22,22]},
+        {type:'cut', to:[-22,22]},
+        {type:'cut', to:[-22,-22]},
+        {type:'cut', to:[22,-22]},
+        {type:'cut', to:[22,0]},
+        {type:'cut', to:[0,0]}
+      ];
+      initPathExample([0,0], segs, lines, 1, 700, 0, 30);
+    } else if(kind === 'drill'){
+      initDrillExample();
+    } else if(kind === 'arc'){
+      var lines = [
+        'G00 X-20 Y-15        (快速定位到起點)',
+        'G01 X5 Y-15 F600     (直線切削)',
+        'G03 X15 Y-5 I0 J10 F600  (逆時針圓弧)',
+        'G01 X15 Y15 F600     (直線切削)'
+      ];
+      var segs = [
+        {type:'rapid', to:[-20,-15]},
+        {type:'cut', to:[5,-15]},
+        {type:'arc', to:[15,-5], center:[5,-5], ccw:true},
+        {type:'cut', to:[15,15]}
+      ];
+      initPathExample([-25,18], segs, lines, 0, 0, null, 30);
+    }
+  }
+
+  function render(){
+    stopAnim();
+    var s = slides[idx];
+    host.innerHTML = renderSlideHTML(s);
+    counter.textContent = (idx+1) + ' / ' + slides.length;
+    renderDots();
+    document.getElementById('prevBtn').disabled = idx === 0;
+    document.getElementById('nextBtn').disabled = idx === slides.length - 1;
+
+    if(s.kind === 'example'){
+      initExample(s.ex);
+    } else if(s.kind === 'compensation'){
+      initCompensation();
+    }
+  }
+
+  document.getElementById('prevBtn').onclick = function(){ if(idx>0){ idx--; render(); } };
+  document.getElementById('nextBtn').onclick = function(){ if(idx<slides.length-1){ idx++; render(); } };
+
+  render();
+})();
+</script>
