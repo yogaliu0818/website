@@ -296,6 +296,51 @@
     color:var(--accent-2);
   }
 
+  /* ---------- SLIDES (簡報傳送門清單) ---------- */
+  .slide-list{
+    display:flex;
+    flex-direction:column;
+    gap:10px;
+  }
+  .slide-row{
+    display:flex;
+    align-items:center;
+    gap:16px;
+    background:var(--panel);
+    border:1px solid var(--line);
+    border-radius:8px;
+    padding:16px 20px;
+    transition:transform 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
+  }
+  .slide-row:hover{
+    transform:translateX(6px);
+    border-color:var(--accent-dim);
+    box-shadow:0 8px 20px rgba(0,0,0,0.3);
+  }
+  .slide-icon{
+    font-family:var(--font-mono);
+    font-size:1.1rem;
+    color:var(--accent);
+    flex-shrink:0;
+  }
+  .slide-meta{
+    display:flex;
+    flex-direction:column;
+    gap:2px;
+    flex:1;
+  }
+  .slide-title{ font-weight:500; }
+  .slide-file{
+    font-family:var(--font-mono);
+    font-size:0.72rem;
+    color:var(--text-muted);
+  }
+  .slide-arrow{
+    font-family:var(--font-mono);
+    color:var(--accent);
+    flex-shrink:0;
+  }
+
   /* ---------- DIRECTIVE (motto) ---------- */
   .directive{
     background:var(--panel-2);
@@ -411,6 +456,7 @@
         <div class="btn-row">
           <a class="btn btn-primary" href="https://instagram.com/yogaliu0818" target="_blank" rel="noopener">前往 INSTAGRAM →</a>
           <a class="btn btn-ghost" href="#loadout">查看興趣</a>
+          <a class="btn btn-ghost" href="#slides">瀏覽簡報</a>
         </div>
       </div>
     </div>
@@ -482,6 +528,27 @@
           <p>從拍攝到剪輯都喜歡自己來，享受把素材變成完整作品的過程。</p>
           <span class="tag">CREATIVE // 後製剪輯</span>
         </div>
+
+      </div>
+    </div>
+  </section>
+
+  <section id="slides">
+    <div class="container">
+      <span class="section-label">[ BRIEFING DECK ]</span>
+      <div class="slide-list">
+
+        <a class="slide-row" href="gcode_tutorial.html" target="_blank" rel="noopener">
+          <span class="slide-icon">▣</span>
+          <span class="slide-meta">
+            <span class="slide-title">G-code 教學</span>
+            <span class="slide-file">gcode_tutorial.html</span>
+          </span>
+          <span class="slide-arrow">→</span>
+        </a>
+
+        <!-- 之後要新增投影片：把上面整段 <a class="slide-row">...</a> 複製一份，
+             貼在這裡，只要改 href 的檔名、slide-title 文字、slide-file 文字三個地方就好 -->
 
       </div>
     </div>
